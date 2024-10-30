@@ -59,7 +59,11 @@ namespace __uninitialized_fill
         {
             value_type& out = raw_reference_cast(items[idx]);
 
-            ::new(static_cast<void*>(&out)) value_type(value);
+            #ifdef __HIP_DEVICE_COMPILE__
+                 ::new(static_cast<void*>(&out)) value_type(value);
+            #else
+                out = value;
+            #endif
         }
     }; // struct functor
 } // namespace __uninitialized_copy

@@ -179,17 +179,17 @@ double ndtri(double y0)
   return (x);
 }
 
-static inline
-double erfcinv(double x)
-{
-  if (x < 0.0 || x > 2.0) {
-    return std::nan("undefined");
-  }
-  if (x == 0.0) {
-    return std::numeric_limits<double>::infinity();
-  }
-  if (x == 2.0) {
-    return -std::numeric_limits<double>::infinity();
-  }
-  return -ndtri(0.5*x) * one_o_sqrt2;
-}
+// static inline
+// double erfcinv(double x)
+// {
+//   if (x < 0.0 || x > 2.0) {
+//     return std::nan("undefined");
+//   }
+//   if (x == 0.0) {
+//     return std::numeric_limits<double>::infinity();
+//   }
+//   if (x == 2.0) {
+//     return -std::numeric_limits<double>::infinity();
+//   }
+//   return -ndtri(0.5*x) * one_o_sqrt2;
+// }
