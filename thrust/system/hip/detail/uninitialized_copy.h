@@ -33,6 +33,7 @@
 #include <thrust/system/hip/detail/execution_policy.h>
 #include <thrust/system/hip/detail/util.h>
 #include <thrust/system/hip/detail/parallel_for.h>
+#include <new>
 
 THRUST_NAMESPACE_BEGIN
 namespace hip_rocprim
@@ -62,7 +63,11 @@ namespace __uninitialized_copy
             InputType const& in  = raw_reference_cast(input[idx]);
             OutputType&      out = raw_reference_cast(output[idx]);
 
-            ::new(static_cast<void*>(&out)) OutputType(in);
+        #ifdef __HIP_DEVICE_COMPILE__
+                ::new(static_cast<void*>(&out)) OutputType(in);
+        #else
+            out = in;
+        #endif        
         }
     }; // struct functor
 

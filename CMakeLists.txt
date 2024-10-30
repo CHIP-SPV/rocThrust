@@ -1,5 +1,5 @@
 # ########################################################################
-# Copyright 2019-2023 Advanced Micro Devices, Inc.
+# Copyright 2019-2024 Advanced Micro Devices, Inc.
 # ########################################################################
 
 cmake_minimum_required(VERSION 3.10.2 FATAL_ERROR)
@@ -12,7 +12,8 @@ else()
 endif()
 
 # Thrust project
-project(rocthrust LANGUAGES CXX)
+# Note: C is required here for dependencies
+project(rocthrust LANGUAGES CXX C)
 
 #Adding CMAKE_PREFIX_PATH
 list( APPEND CMAKE_PREFIX_PATH /opt/rocm/llvm /opt/rocm ${ROCM_PATH} )
@@ -33,6 +34,7 @@ endif()
 
 set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE CACHE BOOL "Add paths to linker search and installed rpath")
 
+include(CMakeDependentOption)
 # rocm-cmake contains common cmake code for rocm projects to help
 # setup and install
 include( cmake/FindROCMCmake.cmake )
@@ -54,9 +56,16 @@ endif()
 set_property(CACHE GPU_TARGETS PROPERTY STRINGS "all")
 
 if(GPU_TARGETS STREQUAL "all")
-  rocm_check_target_ids(DEFAULT_AMDGPU_TARGETS
-    TARGETS "gfx803;gfx900:xnack-;gfx906:xnack-;gfx908:xnack-;gfx90a:xnack-;gfx90a:xnack+;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102"
-  )
+  if(BUILD_ADDRESS_SANITIZER)
+    # ASAN builds require xnack
+    rocm_check_target_ids(DEFAULT_AMDGPU_TARGETS
+      TARGETS "gfx908:xnack+;gfx90a:xnack+;gfx940:xnack+;gfx941:xnack+;gfx942:xnack+"
+    )
+  else()
+    rocm_check_target_ids(DEFAULT_AMDGPU_TARGETS
+      TARGETS "gfx803;gfx900:xnack-;gfx906:xnack-;gfx908:xnack-;gfx90a:xnack-;gfx90a:xnack+;gfx940;gfx941;gfx942;gfx1030;gfx1100;gfx1101;gfx1102;gfx1151;gfx1200;gfx1201"
+    )
+  endif()
   set(GPU_TARGETS "${DEFAULT_AMDGPU_TARGETS}" CACHE STRING "GPU architectures to compile for" FORCE)
 endif()
 
@@ -75,7 +84,7 @@ option(BUILD_EXAMPLES "Build examples" OFF)
 option(BUILD_BENCHMARKS "Build benchmarks" OFF)
 option(DOWNLOAD_ROCPRIM "Download rocPRIM and do not search for rocPRIM package" OFF)
 option(BUILD_ADDRESS_SANITIZER "Build with address sanitizer enabled" OFF)
-option(ENABLE_UPSTREAM_TESTS "Enable upstream tests" OFF)
+cmake_dependent_option(ENABLE_UPSTREAM_TESTS "Enable upstream (thrust) tests" ON BUILD_TEST OFF)
 #Set the header wrapper OFF by default.
 option(BUILD_FILE_REORG_BACKWARD_COMPATIBILITY "Build with file/folder reorg with backward compatibility enabled" OFF)
 
@@ -107,8 +116,6 @@ else()
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Werror")
 endif()
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
-
 if (WIN32)
   add_compile_options(-xhip)
   add_compile_definitions(THRUST_IGNORE_DEPRECATED_CPP_DIALECT)
@@ -122,7 +129,7 @@ if(BUILD_ADDRESS_SANITIZER)
 endif()
 
 # Setup VERSION
-rocm_setup_version(VERSION "3.0.0")
+rocm_setup_version(VERSION "3.3.0")
 
 # Print configuration summary
 include(cmake/Summary.cmake)
@@ -157,6 +164,7 @@ endif()
 
 # Benchmarks
 if(BUILD_BENCHMARKS)
+  add_subdirectory(benchmarks)
   add_subdirectory(internal/benchmark)
 endif()
 
@@ -182,6 +190,8 @@ rocm_package_add_deb_dependencies(DEPENDS "rocprim-dev >= 2.10.1")
 rocm_package_add_rpm_dependencies(DEPENDS "rocprim-devel >= 2.10.1")
 set(CPACK_DEBIAN_PACKAGE_CONFLICTS "hip-thrust, thrust")
 set(CPACK_RPM_PACKAGE_CONFLICTS "hip-thrust, thrust")
+set(CPACK_DEBIAN_DEVEL_PACKAGE_PROVIDES "hipstdpar")
+set(CPACK_RPM_DEVEL_PACKAGE_PROVIDES "hipstdpar")
 
 set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE")
 set(CPACK_RPM_PACKAGE_LICENSE "ASL 2.0")

@@ -35,7 +35,7 @@
 #  define THRUST_DEVICE_NEEDS_RESTORATION
 #endif
 
-#include <hip/amd_detail/host_defines.h>
+#include <hip/host_defines.h>
 
 #ifdef THRUST_HOST_NEEDS_RESTORATION
 #  pragma pop_macro("__host__")
