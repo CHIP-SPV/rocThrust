@@ -13,8 +13,12 @@
 include(cmake/DownloadProject.cmake)
 
 # rocPRIM (https://github.com/ROCmSoftwarePlatform/rocPRIM)
+if (DOWNLOAD_ROCPRIM)
+  message(FATAL_ERROR "rocPRIM download is not supported for chipStar.")
+endif()
+
 if(NOT DOWNLOAD_ROCPRIM)
-  find_package(rocprim QUIET)
+  find_package(rocprim REQUIRED)
 endif()
 if(NOT rocprim_FOUND)
   message(STATUS "Downloading and building rocprim.")
