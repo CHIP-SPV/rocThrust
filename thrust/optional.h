@@ -2112,7 +2112,16 @@ auto optional_map_impl(Opt &&opt, F &&f) -> optional<monostate>
 /// &*o == &j; //true
 /// ```
 template <class T> class optional<T &> {
+private:
+  // T* m_ptr = nullptr;
+  // bool m_has_value = false;
 public:
+  __thrust_exec_check_disable__
+  __host__ __device__
+  void construct(T& ref) noexcept {
+    // m_ptr = thrust::addressof(ref);
+    // m_has_value = true;
+  }
 // The different versions for C++14 and 11 are needed because deduced return
 // types are not SFINAE-safe. This provides better support for things like
 // generic lambdas. C.f.
