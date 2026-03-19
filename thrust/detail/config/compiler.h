@@ -83,13 +83,19 @@
 // CUDA-capable clang should behave similar to NVCC.
 #if defined(__CUDA__)
 #define THRUST_DEVICE_COMPILER THRUST_DEVICE_COMPILER_NVCC
-#elif defined(__HIP__)
+#elif defined(__HIP__) || defined(__HIP_PLATFORM_SPIRV__)
 #define THRUST_DEVICE_COMPILER THRUST_DEVICE_COMPILER_HIP
 #else
 #define THRUST_DEVICE_COMPILER THRUST_DEVICE_COMPILER_CLANG
 #endif
 #else
+// chipStar/SPIR-V host compilation: __HIP__ is not defined but
+// __HIP_PLATFORM_SPIRV__ is set via -D by hipcc.
+#if defined(__HIP_PLATFORM_SPIRV__)
+#define THRUST_DEVICE_COMPILER THRUST_DEVICE_COMPILER_HIP
+#else
 #define THRUST_DEVICE_COMPILER THRUST_DEVICE_COMPILER_UNKNOWN
+#endif
 #endif
 
 // is the device compiler capable of compiling omp?
