@@ -267,19 +267,19 @@ namespace __partition
         if(num_items <= 0)
             return thrust::make_pair(selected_result, rejected_result);
 
-        hip_rocprim::throw_on_error(rocprim::partition_two_way(nullptr,
-                                                               temp_storage_bytes,
-                                                               first,
-                                                               (value_type*){nullptr},
-                                                               (value_type*){nullptr},
-                                                               (size_type*){nullptr},
-                                                               num_items,
-                                                               predicate,
-                                                               stream,
-                                                               debug_sync),
+        // Use rocprim::partition (single output) and split into two output ranges.
+        hip_rocprim::throw_on_error(rocprim::partition(nullptr,
+                                                       temp_storage_bytes,
+                                                       first,
+                                                       (value_type*){nullptr},
+                                                       (size_type*){nullptr},
+                                                       num_items,
+                                                       predicate,
+                                                       stream,
+                                                       debug_sync),
                                     "partition failed on 1st step");
 
-        size_t storage_size = sizeof(size_type) + temp_storage_bytes;
+        size_t storage_size = sizeof(size_type) + temp_storage_bytes + sizeof(value_type) * num_items;
 
         // Allocate temporary storage.
         thrust::detail::temporary_array<thrust::detail::uint8_t, Derived> tmp(policy, storage_size);
@@ -288,19 +288,26 @@ namespace __partition
         size_type* d_num_selected_out
             = reinterpret_cast<size_type*>(static_cast<char*>(ptr) + temp_storage_bytes);
 
-        hip_rocprim::throw_on_error(rocprim::partition_two_way(ptr,
-                                                               temp_storage_bytes,
-                                                               first,
-                                                               selected_result,
-                                                               rejected_result,
-                                                               d_num_selected_out,
-                                                               num_items,
-                                                               predicate,
-                                                               stream,
-                                                               debug_sync),
+        value_type* d_partition_out = reinterpret_cast<value_type*>(
+            reinterpret_cast<char*>(d_num_selected_out) + sizeof(size_type));
+
+        hip_rocprim::throw_on_error(rocprim::partition(ptr,
+                                                       temp_storage_bytes,
+                                                       first,
+                                                       d_partition_out,
+                                                       d_num_selected_out,
+                                                       num_items,
+                                                       predicate,
+                                                       stream,
+                                                       debug_sync),
                                     "partition failed on 2nd step");
 
         size_type num_selected = get_value(policy, d_num_selected_out);
+
+        // Copy selected elements to selected_result
+        thrust::copy_n(policy, d_partition_out, num_selected, selected_result);
+        // Copy rejected elements to rejected_result
+        thrust::copy_n(policy, d_partition_out + num_selected, num_items - num_selected, rejected_result);
 
         return thrust::make_pair(selected_result + num_selected,
                                  rejected_result + num_items - num_selected);
@@ -332,19 +339,20 @@ namespace __partition
         if(num_items <= 0)
             return thrust::make_pair(selected_result, rejected_result);
 
-        hip_rocprim::throw_on_error(rocprim::partition_two_way(nullptr,
-                                                               temp_storage_bytes,
-                                                               first,
-                                                               (value_type*){nullptr},
-                                                               (value_type*){nullptr},
-                                                               (size_type*){nullptr},
-                                                               num_items,
-                                                               predicate,
-                                                               stream,
-                                                               debug_sync),
+        // Use rocprim::partition (flag-based, single output) and split into two output ranges.
+        hip_rocprim::throw_on_error(rocprim::partition(nullptr,
+                                                       temp_storage_bytes,
+                                                       first,
+                                                       (bool*){nullptr},
+                                                       (value_type*){nullptr},
+                                                       (size_type*){nullptr},
+                                                       num_items,
+                                                       stream,
+                                                       debug_sync),
                                     "partition failed on 1st step");
 
-        size_t storage_size = sizeof(size_type) + temp_storage_bytes + sizeof(bool) * num_items;
+        size_t storage_size = sizeof(size_type) + temp_storage_bytes
+                            + sizeof(value_type) * num_items + sizeof(bool) * num_items;
 
         // Allocate temporary storage.
         thrust::detail::temporary_array<thrust::detail::uint8_t, Derived> tmp(policy, storage_size);
@@ -353,24 +361,31 @@ namespace __partition
         size_type* d_num_selected_out
             = reinterpret_cast<size_type*>(static_cast<char*>(ptr) + temp_storage_bytes);
 
-        bool* d_flags = reinterpret_cast<bool*>(reinterpret_cast<char*>(d_num_selected_out)
-                                                + sizeof(size_type));
+        value_type* d_partition_out = reinterpret_cast<value_type*>(
+            reinterpret_cast<char*>(d_num_selected_out) + sizeof(size_type));
+
+        bool* d_flags = reinterpret_cast<bool*>(reinterpret_cast<char*>(d_partition_out)
+                                                + sizeof(value_type) * num_items);
 
         hip_rocprim::transform(policy, stencil, stencil + num_items, d_flags, predicate);
 
-        hip_rocprim::throw_on_error(rocprim::partition_two_way(ptr,
-                                                               temp_storage_bytes,
-                                                               first,
-                                                               d_flags,
-                                                               selected_result,
-                                                               rejected_result,
-                                                               d_num_selected_out,
-                                                               num_items,
-                                                               stream,
-                                                               debug_sync),
+        hip_rocprim::throw_on_error(rocprim::partition(ptr,
+                                                       temp_storage_bytes,
+                                                       first,
+                                                       d_flags,
+                                                       d_partition_out,
+                                                       d_num_selected_out,
+                                                       num_items,
+                                                       stream,
+                                                       debug_sync),
                                     "partition failed on 2nd step");
 
         size_type num_selected = get_value(policy, d_num_selected_out);
+
+        // Copy selected elements to selected_result
+        thrust::copy_n(policy, d_partition_out, num_selected, selected_result);
+        // Copy rejected elements to rejected_result
+        thrust::copy_n(policy, d_partition_out + num_selected, num_items - num_selected, rejected_result);
 
         return thrust::make_pair(selected_result + num_selected,
                                  rejected_result + num_items - num_selected);
