@@ -117,7 +117,7 @@ THRUST_NAMESPACE_END
 
 #if defined(__GLIBCXX__) && __has_feature(is_trivially_assignable)
 #define THRUST_OPTIONAL_IS_TRIVIALLY_COPY_ASSIGNABLE(T) \
-  __is_trivially_assignable(T, T const&)
+  __is_trivially_assignable(T&, T const&)
 #else
 #define THRUST_OPTIONAL_IS_TRIVIALLY_COPY_ASSIGNABLE(T) \
   std::is_trivially_copy_assignable<T>::value
@@ -133,7 +133,7 @@ THRUST_NAMESPACE_END
 
 #if defined(__GLIBCXX__) && __has_feature(is_trivially_assignable)
 #define THRUST_OPTIONAL_IS_TRIVIALLY_MOVE_ASSIGNABLE(T) \
-  __is_trivially_assignable(T, T&&)
+  __is_trivially_assignable(T&, T&&)
 #else
 #define THRUST_OPTIONAL_IS_TRIVIALLY_MOVE_ASSIGNABLE(T) \
   std::is_trivially_move_assignable<T>::value
@@ -229,7 +229,6 @@ template <class T> struct is_const_or_const_ref<T const> : std::true_type{};
 #endif
 
 // std::invoke from C++17
-// https://stackoverflow.com/questions/38288042/c11-14-invoke-workaround
 __thrust_exec_check_disable__
 template <typename Fn, typename... Args,
 #ifdef THRUST_OPTIONAL_LIBCXX_MEM_FN_WORKAROUND
@@ -336,7 +335,6 @@ template <class T, class U = T> struct is_swappable : std::true_type {};
 
 template <class T, class U = T> struct is_nothrow_swappable : std::true_type {};
 #else
-// https://stackoverflow.com/questions/26744589/what-is-a-proper-way-to-implement-is-swappable-to-test-for-the-swappable-concept
 namespace swap_adl_tests {
 // if swap ADL finds this then it would call std::swap otherwise (same
 // signature)
@@ -1580,7 +1578,7 @@ public:
 
     *this = nullopt;
     this->construct(std::forward<Args>(args)...);
-    return value();
+    return this->m_value;
   }
 
   /// \group emplace
@@ -1594,7 +1592,7 @@ public:
   emplace(std::initializer_list<U> il, Args &&... args) {
     *this = nullopt;
     this->construct(il, std::forward<Args>(args)...);
-    return value();
+    return this->m_value;
   }
 
   /// Swaps this optional with the other.
@@ -2112,16 +2110,7 @@ auto optional_map_impl(Opt &&opt, F &&f) -> optional<monostate>
 /// &*o == &j; //true
 /// ```
 template <class T> class optional<T &> {
-private:
-  // T* m_ptr = nullptr;
-  // bool m_has_value = false;
 public:
-  __thrust_exec_check_disable__
-  __host__ __device__
-  void construct(T& ref) noexcept {
-    // m_ptr = thrust::addressof(ref);
-    // m_has_value = true;
-  }
 // The different versions for C++14 and 11 are needed because deduced return
 // types are not SFINAE-safe. This provides better support for things like
 // generic lambdas. C.f.
@@ -2755,14 +2744,11 @@ public:
   ///
   /// \group emplace
   __thrust_exec_check_disable__
-  template <class... Args>
+  template <class U>
   __host__ __device__
-  T &emplace(Args &&... args) noexcept {
-    static_assert(std::is_constructible<T, Args &&...>::value,
-                  "T must be constructible with Args");
-
-    *this = nullopt;
-    this->construct(std::forward<Args>(args)...);
+  T &emplace(U& u) noexcept {
+    m_value = addressof(u);
+    return *m_value;
   }
 
   /// Swaps this optional with the other.
@@ -2882,3 +2868,4 @@ template <class T> struct hash<THRUST_NS_QUALIFIER::optional<T>> {
 } // namespace std
 
 #endif // THRUST_CPP_DIALECT >= 2011
+

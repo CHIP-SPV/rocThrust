@@ -1,6 +1,6 @@
 /******************************************************************************
  * Copyright (c) 2016, NVIDIA CORPORATION.  All rights reserved.
- * Modifications Copyright© 2019 Advanced Micro Devices, Inc. All rights reserved.
+ * Modifications Copyright© 2019-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -27,8 +27,11 @@
  ******************************************************************************/
 #pragma once
 
+#include <thrust/detail/config.h>
+
 #if THRUST_DEVICE_COMPILER == THRUST_DEVICE_COMPILER_HIP
 #include <iterator>
+#include <thrust/detail/memory_wrapper.h>
 #include <thrust/distance.h>
 #include <thrust/system/hip/detail/execution_policy.h>
 #include <thrust/system/hip/detail/parallel_for.h>
@@ -57,13 +60,9 @@ namespace __uninitialized_fill
         template <class Size>
         void THRUST_HIP_DEVICE_FUNCTION operator()(Size idx)
         {
-            value_type& out = raw_reference_cast(items[idx]);
+            value_type& out = raw_reference_cast(items[static_cast<typename std::pointer_traits<Iterator>::difference_type>(idx)]);
 
-            #ifdef __HIP_DEVICE_COMPILE__
-                 ::new(static_cast<void*>(&out)) value_type(value);
-            #else
-                out = value;
-            #endif
+            ::new(static_cast<void*>(&out)) value_type(value);
         }
     }; // struct functor
 } // namespace __uninitialized_copy
@@ -78,7 +77,7 @@ uninitialized_fill_n(execution_policy<Derived>& policy,
     typedef __uninitialized_fill::functor<Iterator, T> functor_t;
 
     hip_rocprim::parallel_for(policy, functor_t(first, x), count);
-    return first + count;
+    return first + static_cast<typename std::pointer_traits<Iterator>::difference_type>(count);
 }
 
 template <class Derived, class Iterator, class T>

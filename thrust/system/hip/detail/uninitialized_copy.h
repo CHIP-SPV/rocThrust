@@ -1,6 +1,6 @@
 /******************************************************************************
  * Copyright (c) 2016, NVIDIA CORPORATION.  All rights reserved.
- * Modifications Copyright© 2019 Advanced Micro Devices, Inc. All rights reserved.
+ * Modifications Copyright© 2019-2024 Advanced Micro Devices, Inc. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
@@ -27,13 +27,15 @@
  ******************************************************************************/
 #pragma once
 
+#include <thrust/detail/config.h>
+
 #if THRUST_DEVICE_COMPILER == THRUST_DEVICE_COMPILER_HIP
 #include <iterator>
+#include <thrust/detail/memory_wrapper.h>
 #include <thrust/distance.h>
 #include <thrust/system/hip/detail/execution_policy.h>
 #include <thrust/system/hip/detail/util.h>
 #include <thrust/system/hip/detail/parallel_for.h>
-#include <new>
 
 THRUST_NAMESPACE_BEGIN
 namespace hip_rocprim
@@ -61,13 +63,9 @@ namespace __uninitialized_copy
         void THRUST_HIP_DEVICE_FUNCTION operator()(Size idx)
         {
             InputType const& in  = raw_reference_cast(input[idx]);
-            OutputType&      out = raw_reference_cast(output[idx]);
+            OutputType&      out = raw_reference_cast(output[static_cast<typename std::pointer_traits<OutputIt>::difference_type>(idx)]);
 
-        #ifdef __HIP_DEVICE_COMPILE__
-                ::new(static_cast<void*>(&out)) OutputType(in);
-        #else
-            out = in;
-        #endif        
+            ::new(static_cast<void*>(&out)) OutputType(in);
         }
     }; // struct functor
 
@@ -83,7 +81,7 @@ uninitialized_copy_n(execution_policy<Derived>& policy,
     typedef __uninitialized_copy::functor<InputIt, OutputIt> functor_t;
 
     hip_rocprim::parallel_for(policy, functor_t(first, result), count);
-    return result + count;
+    return result + static_cast<typename std::pointer_traits<OutputIt>::difference_type>(count);
 }
 
 template <class Derived, class InputIt, class OutputIt>
