@@ -154,3 +154,6 @@ zip_iterator_scan\.hip
 fill
 generate
 random
+scan
+
+# GPU hang (ZE_RESULT_ERROR_DEVICE_LOST) in combined CI run after sustained GPU load
