@@ -27,4 +27,10 @@
 #  include <thrust/system/hip/detail/nv/target.h>
 #elif THRUST_DEVICE_SYSTEM == THRUST_DEVICE_SYSTEM_CUDA
 #  include <nv/target>
+#else
+// Host-only device systems (CPP, OMP, TBB) have no separate device pass of
+// their own. The bundled shim below is backend-agnostic: it only keys on
+// __HIP_DEVICE_COMPILE__ (never defined for pure host compilation), so
+// NV_IF_TARGET(NV_IS_HOST, ...) statically selects the host branch.
+#  include <thrust/system/hip/detail/nv/target.h>
 #endif

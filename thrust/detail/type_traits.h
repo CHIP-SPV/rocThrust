@@ -731,6 +731,12 @@ using invoke_result_t =
 #else // 2017+
   ::cuda::std::invoke_result_t<Invokable, Args...>;
 #endif
+#else // host-only device systems (CPP, OMP, TBB)
+#if THRUST_CPP_DIALECT < 2017
+  typename ::std::result_of<Invokable(Args...)>::type;
+#else // 2017+
+  ::std::invoke_result_t<Invokable, Args...>;
+#endif
 #endif
 
 template <class F, class... Us>
