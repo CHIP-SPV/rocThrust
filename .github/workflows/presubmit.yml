@@ -58,6 +58,9 @@ jobs:
           # install's realpath), so rewrite the whole line (sed -i replaces
           # via rename; the shared install's file is untouched).
           sed -i "s|^HIP_PATH=.*|HIP_PATH=$PWD/hip-local|" hip-local/share/.hipInfo
+          # hipcc's getHipPath() prefers the HIP_PATH env var (set by the
+          # module) over .hipInfo — repoint it too.
+          export HIP_PATH="$PWD/hip-local"
           export PATH="$PWD/hip-local/bin:$PATH"
           hash -r
           # Fail fast if <thrust/...> still resolves outside the job-local
