@@ -43,7 +43,10 @@ jobs:
           # with this PR's thrust overlaid and use its hipcc.
           HIPROOT=$(dirname "$(dirname "$(realpath "$(which hipcc)")")")
           rm -rf hip-local
-          cp -al "$HIPROOT" hip-local 2>/dev/null || cp -a "$HIPROOT" hip-local
+          # If the hardlink copy fails (cross-filesystem) it leaves a partial
+          # tree behind; remove it before the plain-copy fallback or cp -a
+          # nests the install inside it.
+          cp -al "$HIPROOT" hip-local 2>/dev/null || { rm -rf hip-local; cp -a "$HIPROOT" hip-local; }
           # Unlink before overlaying: writing through hardlinks would edit
           # the shared install. The generated rocthrust_version.hpp is
           # resolved from the build tree's -I instead.
@@ -51,12 +54,20 @@ jobs:
           mkdir -p hip-local/include/thrust
           cp -r thrust/. hip-local/include/thrust/
           # hipcc derives its injected -I<...>/include from the HIP_PATH
-          # recorded inside share/.hipInfo, not from its own location —
-          # repoint it at the job-local copy (sed -i replaces via rename,
-          # so the shared install's file is untouched).
-          sed -i "s|$HIPROOT|$PWD/hip-local|g" hip-local/share/.hipInfo
+          # recorded inside share/.hipInfo (which may differ from the
+          # install's realpath), so rewrite the whole line (sed -i replaces
+          # via rename; the shared install's file is untouched).
+          sed -i "s|^HIP_PATH=.*|HIP_PATH=$PWD/hip-local|" hip-local/share/.hipInfo
           export PATH="$PWD/hip-local/bin:$PATH"
           hash -r
+          # Fail fast if <thrust/...> still resolves outside the job-local
+          # copy — otherwise the tests silently build against the thrust
+          # bundled in the shared chipStar install instead of this checkout.
+          printf '#include <thrust/version.h>\n' > /tmp/thrust-probe.hip
+          hipcc -x hip -E /tmp/thrust-probe.hip > /tmp/thrust-probe.out
+          grep 'thrust/version.h' /tmp/thrust-probe.out | sort -u | head -2 || true
+          grep -q "hip-local/include/thrust/version.h" /tmp/thrust-probe.out \
+            || { echo "ERROR: thrust resolves outside hip-local"; exit 1; }
           cmake -S . -B build \
             -DCMAKE_CXX_COMPILER="$(which hipcc)" \
             -DCMAKE_BUILD_TYPE=Release \
