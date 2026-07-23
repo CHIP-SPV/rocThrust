@@ -36,6 +36,22 @@ jobs:
           module load oneapi/2025.0.4 llvm/22.0-native HIP/chipStar/main level-zero/dgpu HIP/rocPRIM/2026.04.08
           module list
           rm -rf ~/.cache/chipStar build
+          # hipcc self-locates and injects -I<its install>/include ahead of
+          # all project -I flags, so tests would compile against the thrust
+          # previously installed into the shared chipStar prefix instead of
+          # this checkout. Build a job-local hardlink copy of the install
+          # with this PR's thrust overlaid and use its hipcc.
+          HIPROOT=$(dirname "$(dirname "$(realpath "$(which hipcc)")")")
+          rm -rf hip-local
+          cp -al "$HIPROOT" hip-local 2>/dev/null || cp -a "$HIPROOT" hip-local
+          # Unlink before overlaying: writing through hardlinks would edit
+          # the shared install. The generated rocthrust_version.hpp is
+          # resolved from the build tree's -I instead.
+          rm -rf hip-local/include/thrust
+          mkdir -p hip-local/include/thrust
+          cp -r thrust/. hip-local/include/thrust/
+          export PATH="$PWD/hip-local/bin:$PATH"
+          hash -r
           cmake -S . -B build \
             -DCMAKE_CXX_COMPILER="$(which hipcc)" \
             -DCMAKE_BUILD_TYPE=Release \
