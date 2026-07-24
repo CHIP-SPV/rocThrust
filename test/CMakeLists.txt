@@ -120,6 +120,22 @@ endfunction()
 # Tests
 # ****************************************************************************
 
+# Host-only (CPP device system) build test — reproducer for
+# https://github.com/CHIP-SPV/chipStar/issues/1363. Compiled with
+# THRUST_DEVICE_SYSTEM=THRUST_DEVICE_SYSTEM_CPP so everything runs on the
+# host; no GPU or GTest needed.
+add_executable(thrust_cpp_backend.hip test_thrust_cpp_backend.cpp)
+target_compile_definitions(thrust_cpp_backend.hip
+    PRIVATE
+        THRUST_DEVICE_SYSTEM=THRUST_DEVICE_SYSTEM_CPP
+)
+target_link_libraries(thrust_cpp_backend.hip
+    PRIVATE
+        rocthrust
+        roc::rocprim_hip
+)
+add_relative_test("thrust_cpp_backend" thrust_cpp_backend.hip)
+
 add_rocthrust_test("adjacent_difference")
 add_rocthrust_test("advance")
 add_rocthrust_test("allocator")

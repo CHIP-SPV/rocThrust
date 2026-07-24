@@ -36,6 +36,41 @@ jobs:
           module load oneapi/2025.0.4 llvm/22.0-native HIP/chipStar/main level-zero/dgpu HIP/rocPRIM/2026.04.08
           module list
           rm -rf ~/.cache/chipStar build
+          # hipcc self-locates and injects -I<its install>/include ahead of
+          # all project -I flags, so tests would compile against the thrust
+          # previously installed into the shared chipStar prefix instead of
+          # this checkout. Build a job-local hardlink copy of the install
+          # with this PR's thrust overlaid and use its hipcc.
+          HIPROOT=$(dirname "$(dirname "$(realpath "$(which hipcc)")")")
+          rm -rf hip-local
+          # If the hardlink copy fails (cross-filesystem) it leaves a partial
+          # tree behind; remove it before the plain-copy fallback or cp -a
+          # nests the install inside it.
+          cp -al "$HIPROOT" hip-local 2>/dev/null || { rm -rf hip-local; cp -a "$HIPROOT" hip-local; }
+          # Unlink before overlaying: writing through hardlinks would edit
+          # the shared install. The generated rocthrust_version.hpp is
+          # resolved from the build tree's -I instead.
+          rm -rf hip-local/include/thrust
+          mkdir -p hip-local/include/thrust
+          cp -r thrust/. hip-local/include/thrust/
+          # hipcc derives its injected -I<...>/include from the HIP_PATH
+          # recorded inside share/.hipInfo (which may differ from the
+          # install's realpath), so rewrite the whole line (sed -i replaces
+          # via rename; the shared install's file is untouched).
+          sed -i "s|^HIP_PATH=.*|HIP_PATH=$PWD/hip-local|" hip-local/share/.hipInfo
+          # hipcc's getHipPath() prefers the HIP_PATH env var (set by the
+          # module) over .hipInfo — repoint it too.
+          export HIP_PATH="$PWD/hip-local"
+          export PATH="$PWD/hip-local/bin:$PATH"
+          hash -r
+          # Fail fast if <thrust/...> still resolves outside the job-local
+          # copy — otherwise the tests silently build against the thrust
+          # bundled in the shared chipStar install instead of this checkout.
+          printf '#include <thrust/version.h>\n' > /tmp/thrust-probe.hip
+          hipcc -x hip -E /tmp/thrust-probe.hip > /tmp/thrust-probe.out
+          grep 'thrust/version.h' /tmp/thrust-probe.out | sort -u | head -2 || true
+          grep -q "hip-local/include/thrust/version.h" /tmp/thrust-probe.out \
+            || { echo "ERROR: thrust resolves outside hip-local"; exit 1; }
           cmake -S . -B build \
             -DCMAKE_CXX_COMPILER="$(which hipcc)" \
             -DCMAKE_BUILD_TYPE=Release \
